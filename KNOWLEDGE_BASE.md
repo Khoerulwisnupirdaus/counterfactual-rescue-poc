@@ -41,7 +41,37 @@ Because `stuckWallet` is the 160-bit truncated Keccak-256 hash of a 160-byte pre
 
 ---
 
-## 4. Architectural Requirement (Important Constraint)
+## 4. Empirical Multi-Chain Scan Results (21 Trapped Counterfactual Wallets Discovered)
+
+Using [`mass_scan_stuck_wallets.py`](mass_scan_stuck_wallets.py) (`Multicall3.aggregate3` batch scanner) across a 0.4% sample (`17,083` out of `4,271,683` deployed EraVM `AGW` smart wallets), we identified **21 distinct counterfactual wallets** holding trapped funds on standard EVM chains where `eth_getCode == 0x`:
+
+| # | Stuck Counterfactual Wallet | Destination Chain (`code == 0x`) | Trapped Balance | Verified Origin EOA Owner (`salt = keccak256(owner)`) | Origin Deployment Tx (Abstract) |
+| :- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `0x6ae0145e60b073e8c47b922f16c0f9e71e3efa86` | **BNB Smart Chain** | **19,998.00 USDC** + 0.0014 BNB | `0x07c65fe9f29a86b937604fa8d20a3fae19d7be48` | `0xcdb63bfc...5d7d5b9f` |
+| 2 | `0x87f5a13a9ef0d839df3be1c6317c2e54f1ca88d5` | **Base Mainnet** | **500.00 USDC** | `0x5cb4fe4324cb88816a8f2cbf8d8ccc4bb9e60233` | `0xe39532ae...70173658` |
+| 3 | `0x006e3a1b9c3b419761f2a7a0411cc37c0da453a7` | **BNB Smart Chain** | **333.41 USDT** | `0xd36d3af50fd3ab162cbb2e1b83655df20c8a3d36` | `0xc6101a1d...f967b67d` |
+| 4 | `0xac3940699a89b5543bd855c899565d35e16fb4a9` | **Base Mainnet** | **238.32 USDC** | `0x502a0b23845834cf2c368edfb1e4e7c8891ee245` | `0x916537dd...aeb8fbbe` |
+| 5 | `0xe8c90ca25ecaaed8711ad1bc9946bc9868e74926` | **Base Mainnet** | **0.0851 ETH** | `0x0e3e247bac4e40e948566515d1e67e8e650333ba` | `0xa28fee16...a445594` |
+| 6 | `0x838c0891efa420de109e5d5daad7d34ea5a6cfdf` | **Base Mainnet** | **0.0576 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 7 | `0x76323362a0c4bdd76161be72e8bfb5a829499ab8` | **Base Mainnet** | **0.0496 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 8 | `0x79154987dbe24053eb8c63c02c57ecd663b7bdd9` | **Arbitrum One** | **62.30 USDC** | `0x03093b26781376ec6b97b7f13f3cbf25ff4e30df` | `0x183ecae6...99a9e8` |
+| 9 | `0x8e3d58d201a62bdac918c77c186b9990a5d01386` | **Arbitrum One** | **31.19 USDC** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 10 | `0x1f373d94a2d7546c983e562169cb23058ab08825` | **Base Mainnet** | **0.0250 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 11 | `0x19dd483d159fdb253f3fc300ab831c7ab26aa9d1` | **Arbitrum One** | **0.0200 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 12 | `0xedd90999e2d5701b389d741b7dd5d8f0ebbf1c9e` | **Base Mainnet** | **20.00 USDC** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 13 | `0x9ddd7813813f3e828cbde267639fad431b2ce354` | **Base Mainnet** | **0.0180 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 14 | `0x1b5e26b7751737552cdb28fd602b276eb9d5d077` | **Base Mainnet** | **0.0151 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 15 | `0x406c44345ffed47c429a047ce28ef915fe76d1f9` | **Arbitrum One** | **0.0140 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 16 | `0x0bc4bcaa440b48f807048c979c2b6576f88e4aa8` | **Arbitrum One** | **0.0120 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 17 | `0x6ff3f09f451f23eeee96d0e9c16d2dfec11b1c55` | **Arbitrum One** | **10.00 USDC** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 18 | `0x805c1e25d3e8121ad30b9bcda532458f4d2d52dc` | **Base Mainnet** | **0.0100 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 19 | `0x90ff4fcb9553bb3e0773c46767283072e8912039` | **Base Mainnet** | **0.0062 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 20 | `0xea1329b1bd7e88c01cca02ad3eca1fb450b1f8cb` | **Base Mainnet** | **0.0053 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+| 21 | `0x966ab709b9a7aa3c81207d0bde0c0e0ae254d787` | **Base Mainnet** | **0.0051 ETH** | Verified `AGWAccount` (`0x20` EraVM) | `AccountFactory` |
+
+---
+
+## 5. Architectural Requirement (Important Constraint)
 - This recovery mechanism requires either:
   1. **Token-Level Adoption (`IERC78xxCounterfactualRescue`)**: The token contract (e.g., `Binance-Peg USDC`, `USDC`, `USDT`, `OFT`) includes the `rescueCounterfactualEraVM` function in its implementation.
   2. **Chain-Level Adoption (`EIP-7702-Counterfactual` / BEP Precompile)**: The destination chain adds a system precompile that sets an EIP-7702 delegation designator (`0xef0100 || owner_EOA`) on `stuckWallet` upon verifying the 160-byte counterfactual preimage signed by `owner_EOA`.
