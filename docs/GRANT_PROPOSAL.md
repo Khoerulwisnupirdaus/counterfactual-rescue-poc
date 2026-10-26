@@ -53,31 +53,37 @@ Our open-source repository (https://github.com/Khoerulwisnupirdaus/counterfactua
 ---
 
 ## PART 2: Ready-to-Post Forum Thread (Ethereum Magicians / BNB Chain Forum)
-*(Post this on https://ethereum-magicians.org or https://forum.bnbchain.org/c/bep/7 first, then include the forum link in your grant application!)*
 
-**Thread Title**:
-`[ERC/BEP Proposal] Zero-Trust Counterfactual Preimage Token Rescue (Cross-VM 0x20 <-> 0xff Recovery)`
+> **Instructions**: Post the title and content below on [Fellowship of Ethereum Magicians](https://ethereum-magicians.org) or [BNB Chain Forum (BEP Category)](https://forum.bnbchain.org/c/bep/7), then include the published forum link in your grant application form.
 
-**Thread Body**:
-```markdown
-## Summary
-We propose a lightweight, zero-trust ERC-20 / BEP-20 extension (`CounterfactualPreimageRescue`) that allows the EOA owner (`ownerEOA`) of a cross-VM counterfactual smart wallet (e.g., EraVM `zksyncCreate2` wallets on ZKsync/Abstract/Sophon/Lens, or EVM `CREATE2` wallets on non-EVM chains) to self-rescue tokens trapped on a chain with an incompatible `CREATE2` prefix (`0x2020dba9...` vs `0xff`).
+### Thread Title
+**[ERC/BEP Proposal] Zero-Trust Counterfactual Preimage Token Rescue (Cross-VM `0x20` $\leftrightarrow$ `0xff` Recovery)**
+
+---
+
+### Thread Content
+
+#### Summary
+We propose a lightweight, zero-trust ERC-20 / BEP-20 extension (`CounterfactualPreimageRescue`) that allows the EOA owner (`ownerEOA`) of a cross-VM counterfactual smart wallet (e.g., EraVM `zksyncCreate2` wallets on ZKsync, Abstract, Sophon, or Lens, or EVM `CREATE2` wallets on non-EVM chains) to self-rescue tokens trapped on a chain with an incompatible `CREATE2` prefix (`0x2020dba9...` vs `0xff`).
 
 - **Reference Implementation, `py-evm` Tests & Scanner**: https://github.com/Khoerulwisnupirdaus/counterfactual-rescue-poc
 - **Full Draft Specification**: https://github.com/Khoerulwisnupirdaus/counterfactual-rescue-poc/blob/master/docs/ERC-Counterfactual-Preimage-Rescue.md
 
-## The Problem (Verified on Mainnet)
+#### The Problem (Verified on Mainnet)
 When a user withdraws or bridges tokens to their Smart Account address on a chain with a different VM `CREATE2` formula, the address cannot be deployed on the destination chain due to domain separation:
-- **EVM `CREATE2` (EIP-1014)**: `keccak256(0xff || factory || salt || initCodeHash)[12..32]` (85 bytes)
-- **EraVM `zksyncCreate2`**: `keccak256(keccak256("zksyncCreate2") || bytes32(uint256(uint160(factory))) || salt || bytecodeHash || keccak256(constructorInput))[12..32]` (160 bytes)
 
-For example, in BSC transaction `0x512b66bef7392f9d1dd8fc3a9ee9234bd87dfdb7b0cd5c0395010f6576491f20`, `19,998.00 USDC` was sent to `0x6ae0145e60b073e8c47b922f16c0f9e71e3efa86` (an EraVM smart wallet owned by EOA `0x07c65fe9f29a86b937604fa8d20a3fae19d7be48`). Because `0x6ae0...` was derived from a 160-byte `0x2020dba9...` preimage, it is mathematically impossible ($2^{160}$) to deploy on BSC via `0xff`.
+1. **EVM `CREATE2` (EIP-1014 — 85 bytes)**:
+   $$\text{address} = \text{keccak256}\Big(\texttt{0xff} \;\|\; \text{factory}_{20} \;\|\; \text{salt}_{32} \;\|\; \text{initCodeHash}_{32}\Big)[12..32]$$
+2. **EraVM `zksyncCreate2` (160 bytes)**:
+   $$\text{address} = \text{keccak256}\Big(\text{keccak256}(\text{"zksyncCreate2"})_{32} \;\|\; \text{pad32}(\text{factory})_{32} \;\|\; \text{salt}_{32} \;\|\; \text{bytecodeHash}_{32} \;\|\; \text{keccak256}(\text{constructorInput})_{32}\Big)[12..32]$$
 
-## The Cryptographic Insight
+For example, in BNB Smart Chain transaction `0x512b66bef7392f9d1dd8fc3a9ee9234bd87dfdb7b0cd5c0395010f6576491f20`, `19,998.00 USDC` was sent to `0x6ae0145e60b073e8c47b922f16c0f9e71e3efa86` (an EraVM smart wallet owned by EOA `0x07c65fe9f29a86b937604fa8d20a3fae19d7be48`). Because `0x6ae0...` was derived from a 160-byte `0x2020dba9...` preimage, it is mathematically impossible ($2^{160}$) to deploy on BSC via `0xff`.
+
+#### The Cryptographic Insight
 In canonical AA factories (`AccountFactory.sol`), `salt` is deterministically bound to the owner's EOA:
-`salt = keccak256(abi.encodePacked(ownerEOA))`
 
-Because `stuckWallet` is the 160-bit truncated Keccak-256 digest of a preimage containing `keccak256(ownerEOA)`, any upgradeable ERC-20/BEP-20 token (or chain precompile) can verify ownership in **1,254 gas** using pure `keccak256` arithmetic—without bridges, oracles, or ZK proofs!
+$$\text{salt} = \text{keccak256}(\text{abi.encodePacked}(\text{ownerEOA}))$$
+
+Because `stuckWallet` is the 160-bit truncated Keccak-256 digest of a preimage containing `keccak256(ownerEOA)`, any upgradeable ERC-20/BEP-20 token (or chain precompile) can verify ownership in **1,254 gas** using pure `keccak256` arithmetic—without bridges, oracles, or ZK proofs.
 
 We welcome feedback from wallet teams, token issuers, and core developers on standardizing `CounterfactualPreimageRescue`.
-```
