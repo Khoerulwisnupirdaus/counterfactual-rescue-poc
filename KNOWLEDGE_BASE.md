@@ -71,7 +71,32 @@ Using [`mass_scan_stuck_wallets.py`](mass_scan_stuck_wallets.py) (`Multicall3.ag
 
 ---
 
-## 5. Architectural Requirement (Important Constraint)
+## 5. Forensic Inbound Transaction Trace (Root-Cause Protocols)
+
+Using [`trace_inbound_txs.py`](trace_inbound_txs.py), we traced the exact destination-chain blocks, transaction hashes, and bridge/off-ramp protocols that delivered funds into the top 8 trapped counterfactual wallets:
+
+| # | Chain | Trapped Wallet (`code == 0x`) | Trapped Amount | Arrival Block | Inbound Tx Hash | Sender / Router Contract | Root-Cause Source Protocol |
+| :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | **BSC** | `0x6ae0145e60b073e8c47b922f16c0f9e71e3efa86` | **19,998.00 USDC** | `80681471` | `0x512b66bef7392f9d1dd8fc3a9ee9234bd87dfdb7b0cd5c0395010f6576491f20` | `0xe2fc31f816a9b94326492132018c3aecc4a93ae1` | **Binance Hot Wallet 20** (Direct CEX Withdrawal to `AGW` address) |
+| 2 | **Base** | `0x87f5a13a9ef0d839df3be1c6317c2e54f1ca88d5` | **500.00 USDC** | `28218758` | `0xf47362bdc90eec1c50ba28bd5e08f4a07196a643b6b3d6611134d76dd54a7464` | `0x887749abb233682aa7d5594a54659c51501445b1` | **EIP-3009 Batch Relayer** (`receiveWithAuthorization` from `0x95ec8292...`) |
+| 3 | **BSC** | `0x006e3a1b9c3b419761f2a7a0411cc37c0da453a7` | **333.41 USDT** | `63794694` | `0xa6294c3554e622dc2e1dff7993e23332ecd05d1fbd062a51efda56075a43efe6` | `0xe93685f3bba03016f02bd1828badd6195988d950` -> `0x3ebd570e...` | **Stargate V2 / LayerZero V2** (`lzReceive` from `srcEid=30324` Abstract Mainnet) |
+| 4 | **Base** | `0xac3940699a89b5543bd855c899565d35e16fb4a9` | **238.32 USDC** | `27117222` | `0x72f2e1a8bdb26a2fd299b5f501ad34b3a75efef71c873fb7053b86d3248adeaf` | `0xf70da97812cb96acdf810712aa562db8dfa3dbef` | **Relay.link Solver** (Order ID `0xd77b0de0...5204557b`) |
+| 5 | **Base** | `0xe8c90ca25ecaaed8711ad1bc9946bc9868e74926` | **0.0851 ETH** | `25980056` | `0xb0d7a1167b82e53b4d492f72edf73b201987a1bab19743e63ab1a31bd4e3c50c` | `0xe93685f3bba03016f02bd1828badd6195988d950` -> `0x2cca08ae...` | **Stargate V2 / LayerZero V2** (`lzReceive` from `srcEid=30324` Abstract Mainnet) |
+| 6 | **Base** | `0x838c0891efa420de109e5d5daad7d34ea5a6cfdf` | **0.0576 ETH** | `37875988` | `0x7f4775c27ecfb9acdc7cc53fccd46d5c07911f42cd0b43195fdb3ea1be7dd7fb` | `0xf70da97812cb96acdf810712aa562db8dfa3dbef` -> `0xbbbfd134...` | **Relay.link Solver + Router** (`0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222`) |
+| 7 | **Arbitrum** | `0x79154987dbe24053eb8c63c02c57ecd663b7bdd9` | **62.30 USDC** | `311753197` | `0xc4728f4127e73915ebc3f412edfa985ab7a0d8c5ee67bd446310b955e109174a` | `0xf70da97812cb96acdf810712aa562db8dfa3dbef` | **Relay.link Solver** (Order ID `0x4ec0b36e...3a69a706`) |
+| 8 | **Arbitrum** | `0x8e3d58d201a62bdac918c77c186b9990a5d01386` | **31.19 USDC** | `447713848` | `0x179789509e21dd24a272bb0f2a1aabbd9381102b99c93b784ad9a48b4aaa4340` | `0xf70da97812cb96acdf810712aa562db8dfa3dbef` | **Relay.link Solver** (Order ID `0x368982c2...48b5c8d0`) |
+
+### Breakdown of Root Causes Across the Top 8 Cases
+1. **Cross-Chain Intent Bridges (`Relay.link` — 50% of top cases, 4/8)**:
+   - When an Abstract Global Wallet (`AGW`) user bridges out of Abstract (`chainId = 2741`) to Base or Arbitrum, if the `recipient` defaults to or is set to their `AGW` smart contract wallet address (`0x20` `zksyncCreate2` derivation), the Relay Solver (`0xf70da97812cb96acdf810712aa562db8dfa3dbef`) fulfills the order directly into the undeployed counterfactual address on the EVM destination chain.
+2. **Omnichain Liquidity Bridges (`Stargate V2 / LayerZero V2` — 25% of top cases, 2/8)**:
+   - When an `AGW` user bridges ETH or USDT from Abstract (`srcEid = 30324`) to Base or BNB Smart Chain via Stargate V2, `sendParam.to` defaults to `addressToBytes32(msg.sender)` (`stuckWallet`). Stargate's destination pool (`0xdc181bd6...` on Base, `0x138eb30f...` on BSC) delivers the tokens to `stuckWallet` where no contract can ever be deployed on EVM.
+3. **CEX / Off-Ramp Withdrawals (`Binance Hot Wallet 20` & `EIP-3009 Relayer` — 25% of top cases, 2/8)**:
+   - Users copy their `AGW` wallet address from Abstract UI and paste it as their withdrawal address on Binance (`19,998 USDC` on BSC) or Coinbase/EIP-3009 (`500 USDC` on Base).
+
+---
+
+## 6. Architectural Requirement (Important Constraint)
 - This recovery mechanism requires either:
   1. **Token-Level Adoption (`IERC78xxCounterfactualRescue`)**: The token contract (e.g., `Binance-Peg USDC`, `USDC`, `USDT`, `OFT`) includes the `rescueCounterfactualEraVM` function in its implementation.
   2. **Chain-Level Adoption (`EIP-7702-Counterfactual` / BEP Precompile)**: The destination chain adds a system precompile that sets an EIP-7702 delegation designator (`0xef0100 || owner_EOA`) on `stuckWallet` upon verifying the 160-byte counterfactual preimage signed by `owner_EOA`.
